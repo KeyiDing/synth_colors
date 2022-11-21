@@ -48,9 +48,7 @@ def getrad(lum,temp):
     radius = np.sqrt(l/(4*np.pi*sb*t**4))
     return radius
 
-###
-## ok so I think that we want to actually compute colors - don't need that radius dependence!
-###
+#computing synthetic magnitudes requires information about the radius of the star in order to get the proper absolute magnitude
 def synthmag(spectra, filte,lum,temp, dered=False):
     '''
     useful resource: L. Casagrande, Don A. VandenBerg
@@ -90,9 +88,26 @@ def synthmag(spectra, filte,lum,temp, dered=False):
     return a+b+18.6921#+.075
 #%%
 
-#%%
+def fix_neg_nan_flux(arr):
+    #most code taken from https://stackoverflow.com/questions/30488961/fill-zero-values-of-1d-numpy-array-with-last-non-zero-values
+    #which doesn't handle first value being zero, here I just force first value to be greater
+    #than zero
+    if arr[0] <= 0:
+        print('first flux value is zero!')
+        arr[0] = np.nanmean(arr[0:500]) #if first value in flux is zero, just replace w mean of first 500 values
+
+    arr[(np.isnan(arr)==True)] = 0 #where flux is negative or nan, replace with zero
+    arr[(arr<0)] = 0 #breaking into two to stop warnings complaining ab nans in less than
+    prev = np.arange(len(arr)) #make array of indexes
+    prev[arr == 0] = 0 #where array is zero, set index to zero
+    prev = np.maximum.accumulate(prev) #get the maximum of the index array up to each value in array, 
+    #i.e. for no zeros, this is just gonna give you back the indexes. for zeros, this 
+    #will give you the largest previous index, so last index where value wasnt zero
+    return arr[prev] #re-index with this new array
 
 # %%
+#computing colors, however, allows you to avoid using radius information! Here, the difference between the magnitudes is what matters
+#so we don't actually need to re-scale the flux
 def synthcolor(spectra, filte1, filte2, dered=False):
     '''
     L. Casagrande, Don A. VandenBerg
@@ -101,10 +116,8 @@ def synthcolor(spectra, filte1, filte2, dered=False):
 
     pass in a filter (filte), which is just a dataframe/structured array with columns of wavelength and throughput. Here, 
     the format is filte.wave for wavelength dimension, filte.thru for throughput dimension. You also pass in a spectrum 
-    with columns of wavelength and flux (here self.wave, self.flux). Ensure your flux units are flam, and your wavelength
-    units are angstroms. You also pass in a luminosity (given as log L/Lsun) and temperature (log Teff) that you get from 
-    either divine knowledge or an isochrone. These are used to compute the radius of the star, which scales the flux 
-    (Radius of the star / 10 pc)^2 scales the flux such that we get out absolute magnitudes.
+    with columns of wavelength and flux (here self.wave, self.flux). This has been  hard-coded to assume that flux is in
+    flam (erg/s/cm^2/angstrom), and the wavelength is in nanometers (which we convert to angstroms)
     '''
     if dered == False:
         flux = spectra.data['FLUX']
@@ -113,8 +126,7 @@ def synthcolor(spectra, filte1, filte2, dered=False):
             flux = spectra.data['FLUX_SC'] 
         elif 'FLUX_DR' in spectra.data.names:
             flux = spectra.data['FLUX_DR'] ## different data labels  -
-    flux = np.where(np.isnan(flux), 0, flux)
-    #xshooter spectra have wavelenth in nm, flux in erg/s/cm^2/Å, multiply nm by 10 to go to angstrom
+    flux = fix_neg_nan_flux(flux)
     spec = pysynphot.spectrum.ArraySourceSpectrum(wave=spectra.data['WAVE']*10, flux=flux, keepneg=False, fluxunits='flam') #changed keepneg to False
     filt1 = pysynphot.spectrum.ArraySpectralElement(filte1.wave, filte1.thru, waveunits='angstrom')
     filt2 = pysynphot.spectrum.ArraySpectralElement(filte2.wave, filte2.thru, waveunits='angstrom')
