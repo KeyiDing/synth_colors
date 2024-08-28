@@ -119,9 +119,9 @@ def synthcolor(spectra, filte1, filte2, dered=False):
     with columns of wavelength and flux (here self.wave, self.flux). This has been  hard-coded to assume that flux is in
     flam (erg/s/cm^2/angstrom), and the wavelength is in nanometers (which we convert to angstroms)
     '''
-    if dered == False:
-        flux = spectra.data['FLUX']
-    elif dered == True:
+
+    flux = spectra.data['FLUX']
+    if dered == True:
         if 'FLUX_SC' in spectra.data.names:
             flux = spectra.data['FLUX_SC'] 
         elif 'FLUX_DR' in spectra.data.names:
